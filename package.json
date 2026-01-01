@@ -1,0 +1,20 @@
+{
+  "name": "general_ledger-local-analyzer",
+  "version": "1.0.0",
+  "description": "A tool to analyze local General Ledger records exceeding 1 million lines",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samon3869/general_ledger-local_analyzer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/samon3869/general_ledger-local_analyzer/issues"
+  },
+  "homepage": "https://github.com/samon3869/general_ledger-local_analyzer#readme"
+}
