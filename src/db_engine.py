@@ -1,10 +1,12 @@
+from pathlib import Path
 import duckdb
-import os
+
+DEFAULT_DB_PATH = Path("data/processed/gl_analyzer.duckdb")
 
 class GLEngine:
-    def __init__(self, db_path="data/processed/gl_analyzer.duckdb"):
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+    def __init__(self, db_path=DEFAULT_DB_PATH):
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def get_connection(self):
         return duckdb.connect(self.db_path)
