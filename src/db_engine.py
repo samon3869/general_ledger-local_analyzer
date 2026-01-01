@@ -127,24 +127,55 @@ class GLEngine:
             cursor.close()
             conn.close()
 
+    def run_query(self, query):
+        """UI에서 요청한 쿼리 실행 결과를 Pandas DataFrame으로 반환"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        df = cursor.execute(query).df()
+        cursor.close()
+        conn.close()
+
+        return df
+
 
 # --- 확인용 코드 ---
-if __name__ == "__main__":
+if __name__ == "__main__":    
     engine = GLEngine()
-    print(f"🚀 분석 시작 (DB: {engine.db_path})")
+    print(f"🚀 분석 엔진 가동 (DB: {engine.db_path})")
 
     try:
-        # 1단계: 스키마 초기화 및 테이블 생성
+        # 1단계: 스키마 초기화 및 빈 테이블 생성
         print("\n[Step 1] 테이블 스키마 준비 중...")
         engine.prepare_table()
         
-        # 2단계: 데이터 적재 및 정합성 검증 (Commit 3의 핵심)
+        # 2단계: 데이터 적재 및 무결성 검증
         print("\n[Step 2] 데이터 적재 및 무결성 검사 중...")
         engine.ingest_csv_files()
         
-        print("\n" + "="*40)
-        print("✨ 데이터 적재 및 검증 성공")
-        print("="*40)
+        # 3단계: 실제 데이터 조회 테스트 (run_query 활용)
+        print("\n[Step 3] 데이터 조회 테스트 (Top 5 Rows)")
+        print("-" * 50)
+        
+        # 데이터가 실제로 존재하는지 상위 5개 행을 가져와 봅니다.
+        # 이 단계에서 데이터가 화면에 출력되면 성공입니다.
+        try:
+            sample_query = "SELECT * FROM general_ledger LIMIT 5"
+            df_sample = engine.run_query(sample_query)
+            
+            if not df_sample.empty:
+                print(df_sample)
+                
+                # 집계 쿼리도 한 번 날려봅니다.
+                count_query = "SELECT COUNT(*) as total_rows FROM general_ledger"
+                total_count = engine.run_query(count_query)['total_rows'][0]
+                print(f"\n✅ 조회 결과: 총 {total_count:,} 개의 행이 DB에 저장되어 있습니다.")
+            else:
+                print("⚠️ 테이블은 생성되었으나 데이터가 비어있습니다.")
+        except Exception as query_err:
+            print(f"❌ 쿼리 실행 중 오류: {query_err}")
+
+        print("-" * 50)
+        print("✨ Commit 3: 적재 및 무결성 검증 단계 완료")
         
     except Exception as e:
         print(f"\n🚨 테스트 중단: {e}")
