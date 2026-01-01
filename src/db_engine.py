@@ -1,5 +1,6 @@
 from pathlib import Path
 import duckdb
+import subprocess
 
 # DB 경로설정
 DEFAULT_DB_PATH = Path("data/processed/gl_analyzer.duckdb")
@@ -13,7 +14,6 @@ class GLEngine:
 
     def get_connection(self):
         return duckdb.connect(self.db_path)
-
 
     def prepare_table(self, first_csv_path=OKLAHOMA_SAMPLE_GL_PATH):
         """
@@ -32,12 +32,14 @@ class GLEngine:
         try:
             cursor.execute("DROP TABLE IF EXISTS general_ledger")
             
+            # STRICT_MODE를 제거하는 대신, 모호한 설정들을 수동으로 확정합니다.
             query = f"""
                 CREATE TABLE general_ledger AS 
                 SELECT * FROM read_csv_auto(
                     '{safe_path}', 
-                    strict_mode=False,   -- 잘못된 형식의 행 무시 (필수)
-                    SAMPLE_SIZE=20000    -- 스키마 분석 범위
+                    ALL_VARCHAR=TRUE,
+                    STRICT_MODE=FALSE,
+                    SAMPLE_SIZE=10000
                 ) 
                 LIMIT 0
             """
@@ -60,14 +62,89 @@ class GLEngine:
             cursor.close()
             conn.close()
 
+    def ingest_csv_files(self, csv_path=OKLAHOMA_SAMPLE_GL_PATH):
+        """
+        CSV 데이터를 테이블에 대량 적재 및 물리적 행 수 기반 무결성 검증
+        """
+        p = Path(csv_path)
+        if not p.exists():
+            print(f"파일을 찾을 수 없습니다: {p.absolute()}")
+            return
+
+        safe_path = p.resolve().as_posix()
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # 1. 이전 에러 로그 테이블 삭제
+            cursor.execute("DROP TABLE IF EXISTS ingestion_errors")
+
+            print(f"🚀 '{p.name}' 검증 및 적재 시작...")
+            
+            # 1. 시스템 명령어 'wc -l'로 물리적 라인 수 파악
+            # DuckDB의 파싱 에러와 상관없이 파일의 실제 줄 수를 셉니다.
+            wc_result = subprocess.run(['wc', '-l', safe_path], capture_output=True, text=True)
+            total_lines = int(wc_result.stdout.split()[0])
+            raw_data_count = total_lines - 1  # 헤더 제외
+
+            # 2. COPY 문 실행 시 REJECTS_TABLE 옵션 추가
+            # 어떤 행이, 왜 에러가 나서 넘어갔는지 'ingestion_errors' 테이블에 기록합니다.
+            query = f"""
+                COPY general_ledger FROM '{safe_path}' (
+                    HEADER TRUE,
+                    STRICT_MODE FALSE,
+                    NULL_PADDING TRUE,
+                    REJECTS_TABLE 'ingestion_errors'
+                );
+            """
+            cursor.execute(query)
+            
+            # 3. 에러 발생 여부 확인
+            cursor.execute("SELECT count(*) FROM ingestion_errors")
+            error_count = cursor.fetchone()[0]
+            
+            # 4. 결과 리포트
+            cursor.execute("SELECT count(*) FROM general_ledger")
+            final_count = cursor.fetchone()[0]
+
+            print(f"\n--- 📊 정밀 검증 리포트 ---")
+            print(f"📥 DB 적재 성공: {final_count:,} 행")
+            print(f"❌ 파싱 에러(Rejected): {error_count:,} 행")
+            
+            if error_count > 0:
+                print(f"⚠️ 에러 내용 일부 (Top 3):")
+                # 에러 원인 컬럼 등을 조회 (DuckDB 버전에 따라 컬럼명 상이할 수 있음)
+                cursor.execute("SELECT line_number, error_message FROM ingestion_errors LIMIT 3")
+                for err in cursor.fetchall():
+                    print(f"  - 라인 {err[0]}: {err[1]}")
+            else:
+                print(f"💯 파싱 에러가 단 한 건도 발생하지 않았습니다.")
+
+        except Exception as e:
+            print(f"❌ 적재 중 치명적 오류: {e}")
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
 
 # --- 확인용 코드 ---
 if __name__ == "__main__":
     engine = GLEngine()
-    print(f"DB 파일 경로: {engine.db_path}")
+    print(f"🚀 분석 시작 (DB: {engine.db_path})")
 
     try:
+        # 1단계: 스키마 초기화 및 테이블 생성
+        print("\n[Step 1] 테이블 스키마 준비 중...")
         engine.prepare_table()
-        print("\n--- Test Finished Successfully ---")
+        
+        # 2단계: 데이터 적재 및 정합성 검증 (Commit 3의 핵심)
+        print("\n[Step 2] 데이터 적재 및 무결성 검사 중...")
+        engine.ingest_csv_files()
+        
+        print("\n" + "="*40)
+        print("✨ 데이터 적재 및 검증 성공")
+        print("="*40)
+        
     except Exception as e:
-        print(f"\n--- Test Failed: {e} ---")
+        print(f"\n🚨 테스트 중단: {e}")
