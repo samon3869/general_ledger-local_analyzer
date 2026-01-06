@@ -1,48 +1,49 @@
 @echo off
-REM General Ledger Analyzer 실행 스크립트 (Windows)
-REM 이 파일을 더블클릭하면 Streamlit 앱이 실행됩니다.
+chcp 65001 >nul 2>&1
+REM General Ledger Analyzer Launcher (Windows)
+REM Double-click this file to run the Streamlit app
 
 echo ========================================
-echo General Ledger Analyzer 시작 중...
+echo Starting General Ledger Analyzer...
 echo ========================================
 
-REM 현재 스크립트 위치로 이동
+REM Change to script directory
 cd /d "%~dp0"
 
-REM Python 경로 확인 (pyenv 사용 시)
+REM Check Python installation
 set PYTHON_PATH=python
 where python >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo Python을 찾을 수 없습니다. Python이 설치되어 있는지 확인하세요.
+    echo ERROR: Python not found. Please install Python.
     pause
     exit /b 1
 )
 
-REM 가상환경 활성화 (있는 경우)
+REM Activate virtual environment if exists
 if exist "venv\Scripts\activate.bat" (
     call venv\Scripts\activate.bat
 )
 
-REM requirements.txt 확인 및 설치 안내
+REM Check and install requirements
 if exist "requirements.txt" (
-    echo 필요한 패키지 확인 중...
+    echo Checking required packages...
     python -c "import streamlit" 2>nul
     if %ERRORLEVEL% NEQ 0 (
-        echo 필요한 패키지를 설치합니다...
+        echo Installing required packages...
         pip install -r requirements.txt
         if %ERRORLEVEL% NEQ 0 (
-            echo 패키지 설치에 실패했습니다.
+            echo ERROR: Failed to install packages.
             pause
             exit /b 1
         )
     )
 )
 
-REM Streamlit 앱 실행
+REM Run Streamlit app
 echo.
-echo Streamlit 앱을 시작합니다...
-echo 브라우저가 자동으로 열립니다.
-echo 종료하려면 이 창에서 Ctrl+C를 누르세요.
+echo Starting Streamlit app...
+echo Browser will open automatically.
+echo Press Ctrl+C to stop.
 echo.
 
 cd src
