@@ -28,21 +28,56 @@ if __name__ == "__main__" and len(sys.argv) == 1:
 
 def find_windows_python():
     """Windows Python 실행 파일 찾기"""
-    possible_paths = [
-        f"/mnt/c/Users/{os.getenv('USER', 'user')}/AppData/Local/Programs/Python/Python311/python.exe",
-        f"/mnt/c/Users/{os.getenv('USER', 'user')}/AppData/Local/Programs/Python/Python312/python.exe",
-        "/mnt/c/Python311/python.exe",
-        "/mnt/c/Python312/python.exe",
-        "/mnt/c/Program Files/Python311/python.exe",
-        "/mnt/c/Program Files/Python312/python.exe",
-    ]
-    
-    # 환경변수로 지정된 경우
+    # 환경변수로 지정된 경우 (최우선)
     if os.getenv("WINDOWS_PYTHON"):
-        if Path(os.getenv("WINDOWS_PYTHON")).exists():
-            return Path(os.getenv("WINDOWS_PYTHON"))
+        env_path = Path(os.getenv("WINDOWS_PYTHON"))
+        if env_path.exists():
+            return env_path
     
+    # Windows Users 디렉토리에서 실제 사용자명 찾기
+    users_dir = Path("/mnt/c/Users")
+    windows_users = []
+    if users_dir.exists():
+        for item in users_dir.iterdir():
+            if item.is_dir() and not item.name.startswith('.'):
+                windows_users.append(item.name)
+    
+    # 가능한 경로 목록 생성
+    possible_paths = []
+    
+    # 1. 환경변수에서 가져온 사용자명 사용
+    wsl_user = os.getenv('USER', '')
+    if wsl_user:
+        for version in ['313', '312', '311', '310']:
+            possible_paths.append(
+                f"/mnt/c/Users/{wsl_user}/AppData/Local/Programs/Python/Python{version}/python.exe"
+            )
+    
+    # 2. 실제 Windows Users 디렉토리 스캔
+    for user in windows_users:
+        for version in ['313', '312', '311', '310']:
+            possible_paths.append(
+                f"/mnt/c/Users/{user}/AppData/Local/Programs/Python/Python{version}/python.exe"
+            )
+    
+    # 3. 일반적인 설치 경로
+    for version in ['313', '312', '311', '310']:
+        possible_paths.extend([
+            f"/mnt/c/Python{version}/python.exe",
+            f"/mnt/c/Program Files/Python{version}/python.exe",
+            f"/mnt/c/Program Files (x86)/Python{version}/python.exe",
+        ])
+    
+    # 중복 제거 (순서 유지)
+    seen = set()
+    unique_paths = []
     for path_str in possible_paths:
+        if path_str not in seen:
+            seen.add(path_str)
+            unique_paths.append(path_str)
+    
+    # 경로 확인
+    for path_str in unique_paths:
         path = Path(path_str)
         if path.exists():
             return path
@@ -63,11 +98,17 @@ def main():
     if not python_exe:
         print("\nERROR: Windows Python not found!")
         print("\nPlease install Python on Windows, then:")
-        print("  1. Find the Python path (e.g., C:\\Python311\\python.exe)")
-        print("  2. Set environment variable:")
-        print("     export WINDOWS_PYTHON=/mnt/c/Python311/python.exe")
-        print("  3. Run this script again")
-        print("\nOr use: python build_exe_windows.py")
+        print("\n방법 1: 환경변수로 직접 설정 (권장)")
+        print("  export WINDOWS_PYTHON=/mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Python/Python313/python.exe")
+        print("  ./build_exe")
+        print("\n방법 2: Windows에서 Python 경로 확인")
+        print("  Windows PowerShell에서: where python")
+        print("  출력된 경로를 WSL 경로로 변환:")
+        print("  C:\\Users\\AD383HB\\... → /mnt/c/Users/AD383HB/...")
+        print("\n방법 3: ~/.bashrc에 영구 설정")
+        print("  echo 'export WINDOWS_PYTHON=/mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Python/Python313/python.exe' >> ~/.bashrc")
+        print("  source ~/.bashrc")
+        print("\n자세한 내용은 SETUP.md 참조")
         sys.exit(1)
     
     print(f"Found Windows Python: {python_exe}")
