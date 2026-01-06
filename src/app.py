@@ -114,9 +114,28 @@ def main() -> None:
         placeholder="예: amount > 10000000 AND account_code = '10100'",
         height=80,
     )
+    with st.sidebar.expander("조건 작성 도움말", expanded=False):
+        st.markdown(
+            """
+            - 컬럼명: 공백/대문자는 `"COLUMN"` 처럼 쌍따옴표로 감싸세요.
+            - 문자열 값: 항상 `'텍스트'` 단일따옴표 사용.
+            - 숫자처럼 보이지만 문자열로 저장된 컬럼은 반드시 `'123'`처럼 따옴표로 감싸세요.
+            - 예시
+              - `"NAME" = 'O''Connor'` (문자열 내 작은따옴표는 두 번 연속으로)
+              - `"CLASSDESCR" = 'Cash Flow Reserve Fund'`
+              - `amount > 10000000 AND account_code = '10100'`
+              - `"DESCRIPTION" ILIKE '%bonus%'` (대소문자 무시 contains)
+              - `"DATE" BETWEEN '2025-01-01' AND '2025-01-31'`
+              - `"ACCOUNT" IN ('10100','20100')`
+              - `"MEMO" IS NULL` / `"MEMO" IS NOT NULL`
+            """
+        )
 
+    st.sidebar.markdown("---")
     st.sidebar.header("Step2: 전표 확장 설정")
     expand_full = st.sidebar.checkbox("라인이 속해있는 전표의 모든 라인 출력", value=True)
+    
+    # je_col은 Step2가 활성화되어 있을 때만 선택 가능
     je_col = None
     if expand_full:
         je_default = columns.index("jeonpyo_id") if "jeonpyo_id" in columns else 0
@@ -126,8 +145,10 @@ def main() -> None:
             index=je_default,
         )
 
+    st.sidebar.markdown("---")
     st.sidebar.header("Step3: 거래유형 대표 표본")
     unique_only = st.sidebar.checkbox("거래유형별 1개 전표만 남김", value=True)
+
     hash_col = None
     if unique_only:
         hash_default = columns.index("transaction_hash") if "transaction_hash" in columns else 0
@@ -169,16 +190,15 @@ def main() -> None:
             if not hash_col:
                 st.error("거래유형 해시 컬럼을 선택하세요.")
                 return
+            if not je_col:
+                st.error("Step3를 사용하려면 Step2를 먼저 활성화하고 전표 식별 컬럼을 선택하세요.")
+                return
             # Analyzer는 jeonpyo_id / transaction_hash 명칭을 기대하므로 임시 매핑
-            mapped_df = df.rename(columns={je_col: "jeonpyo_id", hash_col: "transaction_hash"} if je_col else {hash_col: "transaction_hash"})
+            mapped_df = df.rename(columns={je_col: "jeonpyo_id", hash_col: "transaction_hash"})
             analyzer = JournalEntryAnalyzer(mapped_df)
             result_mapped = analyzer.unique_representative(mapped_df, unique_pattern_only=True)
             # 출력 시 원본 컬럼명으로 복원
-            restore_cols = {}
-            if je_col:
-                restore_cols["jeonpyo_id"] = je_col
-            restore_cols["transaction_hash"] = hash_col
-            result = result_mapped.rename(columns=restore_cols)
+            result = result_mapped.rename(columns={"jeonpyo_id": je_col, "transaction_hash": hash_col})
 
         st.success(
             f"Step1+2 결과 {len(df):,}행 → Step3 적용 후 {len(result):,}행 (표시 최대 {limit:,}행)"
