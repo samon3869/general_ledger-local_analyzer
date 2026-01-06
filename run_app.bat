@@ -30,13 +30,22 @@ if exist "requirements.txt" (
     python -c "import streamlit" 2>nul
     if %ERRORLEVEL% NEQ 0 (
         echo Installing required packages...
-        pip install -r requirements.txt
+        python -m pip install -r requirements.txt
         if %ERRORLEVEL% NEQ 0 (
             echo ERROR: Failed to install packages.
             pause
             exit /b 1
         )
     )
+)
+
+REM Verify streamlit is available
+python -c "import streamlit" 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Streamlit is not installed. Please install it manually:
+    echo   python -m pip install streamlit
+    pause
+    exit /b 1
 )
 
 REM Run Streamlit app
@@ -47,6 +56,6 @@ echo Press Ctrl+C to stop.
 echo.
 
 cd src
-streamlit run app.py --server.headless true
+python -m streamlit run app.py --server.headless true
 
 pause
