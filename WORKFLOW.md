@@ -100,7 +100,22 @@ dist/
 
 ### 빌드 실패
 - Windows Python이 설치되어 있는지 확인
-- `export WINDOWS_PYTHON=/mnt/c/Python311/python.exe` 설정
+- Windows Python 경로를 찾지 못하면 환경변수 설정:
+  ```bash
+  # 현재 세션에서만 (임시)
+  export WINDOWS_PYTHON=/mnt/c/Python311/python.exe
+  
+  # 영구적으로 설정하려면 ~/.bashrc에 추가
+  echo 'export WINDOWS_PYTHON=/mnt/c/Python311/python.exe' >> ~/.bashrc
+  source ~/.bashrc
+  ```
+- 자세한 내용은 `SETUP.md` 참조
+
+### Python 버전 관련
+**중요:** 빌드에 사용하는 **Windows Python 버전**이 중요합니다.
+- WSL의 가상환경 Python 버전과 같을 필요는 없지만, 비슷한 버전(예: 3.11)을 사용하는 것을 권장합니다
+- 빌드 시 Windows Python에 `requirements.txt`가 설치되므로, Windows Python 버전이 빌드된 .exe의 Python 버전이 됩니다
+- 권장: Windows Python 3.11 이상
 
 ### 실행 시 DB를 찾을 수 없음
 - `.exe`와 같은 폴더에 `data/processed/gl_analyzer.duckdb`가 있는지 확인
