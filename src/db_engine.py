@@ -5,7 +5,7 @@ import duckdb
 import pandas as pd
 
 DEFAULT_DB_PATH = Path("data/processed/gl_analyzer.duckdb")
-GL_FOLDER_PATH = Path("data/processed/raw_after_normalization")
+GL_FOLDER_PATH = Path("data/working/after_processing")  # 전처리된 CSV 파일 위치
 
 # Known column types to override default VARCHAR inference
 KNOWN_TYPES = {

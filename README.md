@@ -3,34 +3,45 @@
 
 ## 빠른 시작
 
-### 방법 1: 독립 실행 파일 사용 (Python 불필요) ⭐ 권장
+### 개발자용 워크플로우 (WSL → 빌드 → 배포)
+
+1. **Git Clone**
+   ```bash
+   git clone <repository-url>
+   cd general_ledger-local_analyzer
+   ```
+
+2. **CSV 전처리** (Jupyter Notebook)
+   ```bash
+   jupyter notebook src/csv_data_normalizaion.ipynb
+   ```
+   - 전처리된 CSV 파일이 `data/working/after_processing/`에 생성됨
+
+3. **DB 생성**
+   ```bash
+   python src/db_engine.py
+   ```
+   - `data/processed/gl_analyzer.duckdb` 파일 생성
+
+4. **Windows용 빌드**
+   ```bash
+   ./build_exe  # 또는 build_exe 파일 더블클릭
+   ```
+
+5. **배포**
+   - `dist/` 폴더 전체를 압축하여 팀원에게 전달
+   - 자세한 내용은 `WORKFLOW.md` 참조
+
+### 사용자용 (팀원)
 
 **빌드된 .exe 파일이 있는 경우:**
-1. `GL_Analyzer.exe` 파일을 더블클릭하세요.
-2. 또는 `run_app.bat`를 더블클릭하세요 (자동으로 .exe를 찾아 실행).
+1. 압축 해제
+2. `GL_Analyzer.exe` 파일을 더블클릭하세요
+3. 브라우저가 자동으로 열리며 앱이 실행됩니다
 
-**빌드 방법:**
-- Python이 설치된 컴퓨터에서 `python build_exe.py` 실행
-- 생성된 `GL_Analyzer.exe`를 다른 컴퓨터에 복사하여 사용
-
-### 방법 2: Python 설치된 컴퓨터에서 실행
-
-**Windows 사용자:**
-1. `run_app.bat` 파일을 더블클릭하세요.
-2. 브라우저가 자동으로 열리며 앱이 실행됩니다.
-
-### Linux/Mac 사용자 (Python 설치됨)
-1. `run_app.sh` 파일을 더블클릭하거나 터미널에서 실행:
-   ```bash
-   ./run_app.sh
-   ```
-2. 또는 Python 스크립트로 실행:
-   ```bash
-   python run_app.py
-   ```
-
-### Python이 없는 컴퓨터에서 실행하려면
-독립 실행 파일(.exe)을 생성하세요. 자세한 내용은 `BUILD_INSTRUCTIONS.md`를 참조하세요.
+**Python 설치된 Windows 컴퓨터에서 개발 모드 실행:**
+1. `run_app.bat` 파일을 더블클릭하세요
+2. 브라우저가 자동으로 열리며 앱이 실행됩니다
 
 ## 폴더 구조
 
@@ -44,9 +55,11 @@ general_ledger-local_analyzer/
 │   ├── db_engine.py              # DuckDB 엔진
 │   └── journal_entry_analyzer.py  # 분개장 분석 로직
 ├── requirements.txt              # Python 패키지 목록
+├── build_exe                     # WSL에서 Windows용 빌드 (더블클릭)
+├── build_exe_windows.py          # WSL에서 Windows용 빌드 스크립트
+├── build_exe_windows.sh          # WSL에서 Windows용 빌드 스크립트 (Bash)
 ├── run_app.bat                   # Windows 실행 스크립트
-├── run_app.sh                    # Linux/Mac 실행 스크립트
-└── run_app.py                    # 크로스 플랫폼 Python 실행 스크립트
+└── BUILD.md                      # 빌드 가이드
 ```
 
 ## 기능
@@ -64,23 +77,53 @@ general_ledger-local_analyzer/
 ## 사용 방법
 
 1. **DB 파일 준비**: `data/processed/gl_analyzer.duckdb` 파일이 있어야 합니다.
-2. **실행 스크립트 실행**: 운영체제에 맞는 실행 파일을 더블클릭하세요.
+2. **실행**: 
+   - `.exe` 파일이 있으면 더블클릭
+   - 없으면 `run_app.bat` 더블클릭 (Python 필요)
 3. **브라우저에서 분석**: 자동으로 열린 브라우저에서 조건을 입력하고 분석하세요.
+
+## 빌드 방법
+
+### WSL에서 Windows용 .exe 빌드
+
+1. **`build_exe` 파일을 더블클릭** (가장 간단)
+2. 또는 터미널에서 `./build_exe` 실행
+3. 빌드 완료 후 `dist/GL_Analyzer.exe` 생성
+
+자세한 내용은 `BUILD.md` 참조
 
 ## 시스템 요구사항
 
-- Python 3.11 이상
-- 필요한 패키지는 `requirements.txt`에 명시되어 있으며, 실행 시 자동 설치됩니다.
+### 실행 시 (Windows)
+- 독립 실행 파일(.exe) 사용 시: Python 불필요
+- `run_app.bat` 사용 시: Python 3.11 이상 필요
+
+### 빌드 시 (WSL)
+- Windows에 Python 3.11 이상 설치 필요
+- WSL에서 Windows Python 경로 접근 가능해야 함
 
 ## 문제 해결
 
 ### Python을 찾을 수 없습니다
-- Python이 설치되어 있는지 확인하세요.
-- PATH 환경변수에 Python이 포함되어 있는지 확인하세요.
+- Windows에 Python이 설치되어 있는지 확인하세요.
+- WSL에서 Windows Python 경로 확인:
+  ```bash
+  ls /mnt/c/Python311/python.exe
+  ```
+
+### Windows Python 경로를 찾지 못합니다
+- 수동으로 경로 지정:
+  ```bash
+  export WINDOWS_PYTHON=/mnt/c/Python311/python.exe
+  ./build_exe
+  ```
 
 ### 패키지 설치 실패
 - 인터넷 연결을 확인하세요.
-- 수동으로 설치: `pip install -r requirements.txt`
+- Windows Python으로 수동 설치:
+  ```bash
+  /mnt/c/Python311/python.exe -m pip install -r requirements.txt
+  ```
 
 ### DB 파일을 찾을 수 없습니다
 - `data/processed/gl_analyzer.duckdb` 파일이 존재하는지 확인하세요.
