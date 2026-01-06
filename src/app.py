@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -93,11 +94,31 @@ def main() -> None:
     st.caption("DuckDB + Streamlit frontend for filtered ledger queries.")
 
     st.sidebar.header("연결 설정")
+    # 기본 DB 경로는 프로젝트 루트 기준 상대 경로
+    # PyInstaller로 빌드된 경우와 일반 실행 모두 지원
+    if getattr(sys, 'frozen', False):
+        # PyInstaller로 빌드된 경우: .exe와 같은 폴더에서 data 폴더 찾기
+        exe_dir = Path(sys.executable).parent
+        default_db = exe_dir / DEFAULT_DB_PATH
+    else:
+        # 일반 Python 실행
+        default_db = Path(__file__).parent.parent / DEFAULT_DB_PATH
+    
     db_path_input = st.sidebar.text_input(
-        "DuckDB 파일 경로", value=str(DEFAULT_DB_PATH)
+        "DuckDB 파일 경로", value=str(default_db)
     ).strip()
 
     db_path = Path(db_path_input)
+    # 상대 경로인 경우 프로젝트 루트 기준으로 변환
+    if not db_path.is_absolute():
+        if getattr(sys, 'frozen', False):
+            # PyInstaller로 빌드된 경우: .exe와 같은 폴더 기준
+            exe_dir = Path(sys.executable).parent
+            db_path = exe_dir / db_path
+        else:
+            # 일반 Python 실행
+            db_path = Path(__file__).parent.parent / db_path
+    
     if not db_path.exists():
         st.error(f"DB 파일을 찾을 수 없습니다: {db_path}")
         st.stop()
@@ -219,4 +240,33 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # PyInstaller로 빌드된 경우 streamlit CLI를 직접 실행
+    if getattr(sys, 'frozen', False):
+        # PyInstaller로 빌드된 경우 streamlit CLI 실행
+        from streamlit.web import cli as stcli
+        import os
+        
+        # 현재 스크립트 경로 찾기
+        if hasattr(sys, '_MEIPASS'):
+            # 임시 폴더에서 실행 중
+            script_path = Path(sys._MEIPASS) / "src" / "app.py"
+            if not script_path.exists():
+                script_path = Path(sys._MEIPASS) / "app.py"
+        else:
+            # 실행 파일과 같은 폴더
+            exe_dir = Path(sys.executable).parent
+            script_path = exe_dir / "src" / "app.py"
+            if not script_path.exists():
+                script_path = exe_dir / "app.py"
+        
+        if script_path.exists():
+            os.chdir(script_path.parent)
+            # streamlit CLI 직접 호출 (브라우저 자동 열림)
+            sys.argv = ["streamlit", "run", str(script_path), "--server.headless", "false"]
+            stcli.main()
+        else:
+            print(f"Error: app.py not found. Searched: {script_path}")
+            input("Press Enter to exit...")
+    else:
+        # 일반 Python 실행 시 (streamlit run app.py로 실행됨)
+        main()
