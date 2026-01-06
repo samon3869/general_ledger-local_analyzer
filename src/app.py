@@ -93,11 +93,17 @@ def main() -> None:
     st.caption("DuckDB + Streamlit frontend for filtered ledger queries.")
 
     st.sidebar.header("연결 설정")
+    # 기본 DB 경로는 프로젝트 루트 기준 상대 경로
+    default_db = Path(__file__).parent.parent / DEFAULT_DB_PATH
     db_path_input = st.sidebar.text_input(
-        "DuckDB 파일 경로", value=str(DEFAULT_DB_PATH)
+        "DuckDB 파일 경로", value=str(default_db)
     ).strip()
 
     db_path = Path(db_path_input)
+    # 상대 경로인 경우 프로젝트 루트 기준으로 변환
+    if not db_path.is_absolute():
+        db_path = Path(__file__).parent.parent / db_path
+    
     if not db_path.exists():
         st.error(f"DB 파일을 찾을 수 없습니다: {db_path}")
         st.stop()
