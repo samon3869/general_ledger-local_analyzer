@@ -71,6 +71,19 @@ def main():
         sys.exit(1)
     
     print(f"Found Windows Python: {python_exe}")
+    
+    # Python 버전 확인
+    try:
+        version_output = subprocess.run(
+            [str(python_exe), "--version"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print(f"Python version: {version_output.stdout.strip()}")
+    except:
+        print("Warning: Could not check Python version")
+    
     print()
     
     # PyInstaller 설치 확인

@@ -101,6 +101,7 @@ general_ledger-local_analyzer/
 ### 빌드 시 (WSL)
 - Windows에 Python 3.11 이상 설치 필요
 - WSL에서 Windows Python 경로 접근 가능해야 함
+- **참고:** WSL의 가상환경 Python 버전과 Windows Python 버전이 같을 필요는 없지만, 비슷한 버전을 권장합니다
 
 ## 문제 해결
 
@@ -114,9 +115,15 @@ general_ledger-local_analyzer/
 ### Windows Python 경로를 찾지 못합니다
 - 수동으로 경로 지정:
   ```bash
+  # 현재 세션에서만 (임시)
   export WINDOWS_PYTHON=/mnt/c/Python311/python.exe
   ./build_exe
+  
+  # 영구적으로 설정
+  echo 'export WINDOWS_PYTHON=/mnt/c/Python311/python.exe' >> ~/.bashrc
+  source ~/.bashrc
   ```
+- 자세한 내용은 `SETUP.md` 참조
 
 ### 패키지 설치 실패
 - 인터넷 연결을 확인하세요.
