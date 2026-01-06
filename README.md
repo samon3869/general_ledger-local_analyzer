@@ -3,11 +3,23 @@
 
 ## 빠른 시작
 
-### Windows 사용자
+### 방법 1: 독립 실행 파일 사용 (Python 불필요) ⭐ 권장
+
+**빌드된 .exe 파일이 있는 경우:**
+1. `GL_Analyzer.exe` 파일을 더블클릭하세요.
+2. 또는 `run_app.bat`를 더블클릭하세요 (자동으로 .exe를 찾아 실행).
+
+**빌드 방법:**
+- Python이 설치된 컴퓨터에서 `python build_exe.py` 실행
+- 생성된 `GL_Analyzer.exe`를 다른 컴퓨터에 복사하여 사용
+
+### 방법 2: Python 설치된 컴퓨터에서 실행
+
+**Windows 사용자:**
 1. `run_app.bat` 파일을 더블클릭하세요.
 2. 브라우저가 자동으로 열리며 앱이 실행됩니다.
 
-### Linux/Mac 사용자
+### Linux/Mac 사용자 (Python 설치됨)
 1. `run_app.sh` 파일을 더블클릭하거나 터미널에서 실행:
    ```bash
    ./run_app.sh
@@ -16,6 +28,9 @@
    ```bash
    python run_app.py
    ```
+
+### Python이 없는 컴퓨터에서 실행하려면
+독립 실행 파일(.exe)을 생성하세요. 자세한 내용은 `BUILD_INSTRUCTIONS.md`를 참조하세요.
 
 ## 폴더 구조
 
