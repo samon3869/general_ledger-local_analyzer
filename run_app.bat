@@ -11,7 +11,7 @@ REM Change to script directory
 cd /d "%~dp0"
 
 REM Check Python installation
-set PYTHON_PATH=python
+set PYTHON_CMD=python
 where python >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: Python not found. Please install Python.
@@ -27,14 +27,23 @@ if exist "venv\Scripts\activate.bat" (
 REM Check and install requirements
 if exist "requirements.txt" (
     echo Checking required packages...
-    python -c "import streamlit" 2>nul
+    REM Use the same Python that will run the app
+    %PYTHON_CMD% -c "import streamlit" 2>nul
     if %ERRORLEVEL% NEQ 0 (
-        echo Installing required packages...
+        echo Streamlit not found. Installing required packages...
         echo This may take a few minutes...
-        python -m pip install -r requirements.txt --quiet
+        %PYTHON_CMD% -m pip install -r requirements.txt
         if %ERRORLEVEL% NEQ 0 (
             echo ERROR: Failed to install packages.
-            echo Please try manually: python -m pip install -r requirements.txt
+            echo Please try manually: %PYTHON_CMD% -m pip install -r requirements.txt
+            pause
+            exit /b 1
+        )
+        REM Verify installation
+        %PYTHON_CMD% -c "import streamlit" 2>nul
+        if %ERRORLEVEL% NEQ 0 (
+            echo ERROR: Streamlit installation failed. Please install manually:
+            echo   %PYTHON_CMD% -m pip install streamlit
             pause
             exit /b 1
         )
@@ -52,6 +61,6 @@ echo Press Ctrl+C to stop.
 echo.
 
 cd src
-python -m streamlit run app.py --server.headless true
+%PYTHON_CMD% -m streamlit run app.py --server.headless true
 
 pause
