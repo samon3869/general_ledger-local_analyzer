@@ -9,7 +9,13 @@
 터미널에서 한 번만 실행:
 
 ```bash
+# 예시 1: 일반적인 경로
 export WINDOWS_PYTHON=/mnt/c/Python311/python.exe
+
+# 예시 2: 사용자명이 다른 경우 (예: AD383HB)
+export WINDOWS_PYTHON=/mnt/c/Users/AD383HB/AppData/Local/Programs/Python/Python313/python.exe
+
+# 설정 후 빌드 실행
 ./build_exe
 ```
 
@@ -30,8 +36,14 @@ vim ~/.bashrc
 
 ```bash
 # Windows Python 경로 설정
+# 예시 1: 일반적인 경로
 export WINDOWS_PYTHON=/mnt/c/Python311/python.exe
+
+# 예시 2: 사용자명이 다른 경우 (예: AD383HB)
+# export WINDOWS_PYTHON=/mnt/c/Users/AD383HB/AppData/Local/Programs/Python/Python313/python.exe
 ```
+
+**실제 경로에 맞게 수정하세요!**
 
 저장 후 다음 중 하나 실행:
 
@@ -61,9 +73,20 @@ Windows Python이 설치되어 있지만 경로를 모르는 경우:
 # 일반적인 설치 위치 확인
 ls /mnt/c/Python311/python.exe
 ls /mnt/c/Python312/python.exe
-ls /mnt/c/Users/$USER/AppData/Local/Programs/Python/Python311/python.exe
-ls /mnt/c/Users/$USER/AppData/Local/Programs/Python/Python312/python.exe
+ls /mnt/c/Python313/python.exe
+
+# Windows 사용자명이 다른 경우 (예: AD383HB)
+ls /mnt/c/Users/AD383HB/AppData/Local/Programs/Python/Python313/python.exe
+
+# 또는 Windows Users 디렉토리 확인
+ls /mnt/c/Users/
+# 출력된 사용자명을 사용하여 경로 확인
 ```
+
+**Windows 경로를 WSL 경로로 변환:**
+- Windows: `C:\Users\AD383HB\AppData\Local\Programs\Python\Python313\python.exe`
+- WSL: `/mnt/c/Users/AD383HB/AppData/Local/Programs/Python/Python313/python.exe`
+- 변환 규칙: `C:\` → `/mnt/c/`, `\` → `/`
 
 ### 방법 4: 빌드 스크립트에 직접 지정
 
