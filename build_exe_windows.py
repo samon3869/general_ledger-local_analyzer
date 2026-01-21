@@ -13,76 +13,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-# 파일 매니저에서 더블클릭한 경우를 위한 처리
-if __name__ == "__main__" and len(sys.argv) == 1:
-    # 터미널이 없으면 새 터미널에서 실행
-    if not os.isatty(sys.stdin.fileno()):
-        # GUI 환경에서 실행된 경우
-        terminal_cmd = os.getenv("TERMINAL", "gnome-terminal")
-        script_path = Path(__file__).absolute()
-        try:
-            subprocess.Popen([terminal_cmd, "-e", f"python3 {script_path}; read -p 'Press Enter to close...'"])
-            sys.exit(0)
-        except:
-            pass  # 터미널 실행 실패 시 계속 진행
-
-def find_windows_python():
-    """Windows Python 실행 파일 찾기"""
-    # 환경변수로 지정된 경우 (최우선)
-    if os.getenv("WINDOWS_PYTHON"):
-        env_path = Path(os.getenv("WINDOWS_PYTHON"))
-        if env_path.exists():
-            return env_path
-    
-    # Windows Users 디렉토리에서 실제 사용자명 찾기
-    users_dir = Path("/mnt/c/Users")
-    windows_users = []
-    if users_dir.exists():
-        for item in users_dir.iterdir():
-            if item.is_dir() and not item.name.startswith('.'):
-                windows_users.append(item.name)
-    
-    # 가능한 경로 목록 생성
-    possible_paths = []
-    
-    # 1. 환경변수에서 가져온 사용자명 사용
-    wsl_user = os.getenv('USER', '')
-    if wsl_user:
-        for version in ['313', '312', '311', '310']:
-            possible_paths.append(
-                f"/mnt/c/Users/{wsl_user}/AppData/Local/Programs/Python/Python{version}/python.exe"
-            )
-    
-    # 2. 실제 Windows Users 디렉토리 스캔
-    for user in windows_users:
-        for version in ['313', '312', '311', '310']:
-            possible_paths.append(
-                f"/mnt/c/Users/{user}/AppData/Local/Programs/Python/Python{version}/python.exe"
-            )
-    
-    # 3. 일반적인 설치 경로
-    for version in ['313', '312', '311', '310']:
-        possible_paths.extend([
-            f"/mnt/c/Python{version}/python.exe",
-            f"/mnt/c/Program Files/Python{version}/python.exe",
-            f"/mnt/c/Program Files (x86)/Python{version}/python.exe",
-        ])
-    
-    # 중복 제거 (순서 유지)
-    seen = set()
-    unique_paths = []
-    for path_str in possible_paths:
-        if path_str not in seen:
-            seen.add(path_str)
-            unique_paths.append(path_str)
-    
-    # 경로 확인
-    for path_str in unique_paths:
-        path = Path(path_str)
-        if path.exists():
-            return path
-    
-    return None
+from windows_python_finder import find_windows_python
 
 def main():
     print("=" * 60)
@@ -136,8 +67,11 @@ def main():
             capture_output=True
         )
     except subprocess.CalledProcessError:
-        print("Installing PyInstaller...")
-        subprocess.run([str(python_exe), "-m", "pip", "install", "pyinstaller"], check=True)
+        print("Installing PyInstaller (user-site)...")
+        subprocess.run(
+            [str(python_exe), "-m", "pip", "install", "--user", "pyinstaller"],
+            check=True
+        )
     
     # requirements.txt 설치 확인
     if (script_dir / "requirements.txt").exists():
@@ -149,46 +83,186 @@ def main():
                 capture_output=True
             )
         except subprocess.CalledProcessError:
-            print("Installing requirements...")
+            print("Installing requirements (user-site)...")
             subprocess.run(
-                [str(python_exe), "-m", "pip", "install", "-r", "requirements.txt"],
+                [str(python_exe), "-m", "pip", "install", "--user", "-r", "requirements.txt"],
                 check=True
             )
     
     # 빌드 명령어
+    # 래퍼 스크립트를 entry point로 사용
+    wrapper_file = script_dir / "run_streamlit.py"
     app_file = script_dir / "src" / "app.py"
     
+    # Streamlit의 static과 runtime 폴더 경로 찾기
+    streamlit_static_win = None
+    streamlit_runtime_win = None
+    try:
+        # Windows Python의 site-packages에서 streamlit 경로 찾기
+        # Windows 경로를 그대로 유지 (PyInstaller가 Windows에서 실행되므로)
+        find_cmd = """
+import streamlit
+from pathlib import Path
+import sys
+
+# streamlit.__file__ 사용
+streamlit_path = Path(streamlit.__file__).parent
+# Windows 경로를 그대로 출력
+print(str(streamlit_path).replace('/', '\\\\'))
+"""
+        result = subprocess.run(
+            [str(python_exe), "-c", find_cmd],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        streamlit_dir_win = result.stdout.strip()
+        streamlit_static_win = streamlit_dir_win + "\\static"
+        streamlit_runtime_win = streamlit_dir_win + "\\runtime"
+        
+        # WSL에서도 확인하기 위해 경로 변환
+        if streamlit_dir_win.startswith("C:\\"):
+            streamlit_dir_str = "/mnt/c/" + streamlit_dir_win[3:].replace("\\", "/")
+        elif streamlit_dir_win.startswith("C:"):
+            streamlit_dir_str = "/mnt/c/" + streamlit_dir_win[2:].replace("\\", "/")
+        else:
+            streamlit_dir_str = streamlit_dir_win.replace("\\", "/")
+        
+        streamlit_dir = Path(streamlit_dir_str)
+        streamlit_static = streamlit_dir / "static"
+        streamlit_runtime = streamlit_dir / "runtime"
+        
+        print(f"Found Streamlit directory (Windows): {streamlit_dir_win}")
+        print(f"Found Streamlit directory (WSL): {streamlit_dir}")
+        print(f"  static exists (WSL): {streamlit_static.exists()}")
+        print(f"  runtime exists (WSL): {streamlit_runtime.exists()}")
+        
+        # 존재하지 않으면 None으로 설정
+        if not streamlit_static.exists():
+            streamlit_static_win = None
+        if not streamlit_runtime.exists():
+            streamlit_runtime_win = None
+    except Exception as e:
+        print(f"Warning: Could not find Streamlit directories: {e}")
+        print("  Streamlit static/runtime folders may not be included in the build.")
+        print("  --collect-all=streamlit should handle this, but explicit inclusion is preferred.")
+    
+    # spec 파일 생성 (더 정확한 제어를 위해)
+    spec_file = script_dir / "GL_Analyzer.spec"
+    
+    # WSL 경로를 Windows 경로로 변환하는 함수
+    def wsl_to_win_path(path):
+        path_str = str(path)
+        if path_str.startswith("/mnt/c/"):
+            return "C:" + path_str[6:].replace("/", "\\")
+        elif path_str.startswith("/"):
+            # WSL 경로를 Windows 네트워크 경로로 변환
+            return "\\\\wsl.localhost\\Ubuntu" + path_str.replace("/", "\\")
+        return path_str.replace("/", "\\")
+    
+    # Windows 경로로 변환
+    wrapper_file_win = wsl_to_win_path(wrapper_file)
+    script_dir_win = wsl_to_win_path(script_dir)
+    src_dir_win = wsl_to_win_path(script_dir / "src")
+    db_file_win = wsl_to_win_path(script_dir / "data" / "processed" / "gl_analyzer.duckdb")
+    
+    # spec 파일 내용 생성
+    spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
+import sys
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files, copy_metadata
+
+block_cipher = None
+
+# Streamlit의 모든 서브모듈 수집
+hiddenimports = collect_submodules('streamlit')
+hiddenimports.extend([
+    'streamlit',
+    'pandas',
+    'duckdb',
+    'journal_entry_analyzer',
+    'db_engine',
+])
+
+# 데이터 파일 수집
+datas = [
+    (r'{src_dir_win}', 'src'),
+    (r'{db_file_win}', 'data/processed'),
+"""
+    
+    # Streamlit의 static과 runtime 폴더 추가
+    if streamlit_static_win:
+        spec_content += f"    (r'{streamlit_static_win}', 'streamlit/static'),\n"
+        print(f"  Adding streamlit/static to spec: {streamlit_static_win}")
+    
+    if streamlit_runtime_win:
+        spec_content += f"    (r'{streamlit_runtime_win}', 'streamlit/runtime'),\n"
+        print(f"  Adding streamlit/runtime to spec: {streamlit_runtime_win}")
+    
+    spec_content += f"""]
+
+# Streamlit의 모든 데이터 파일 수집
+try:
+    streamlit_datas = collect_data_files('streamlit')
+    datas.extend(streamlit_datas)
+except Exception as e:
+    print(f"Warning: Could not collect Streamlit data files: {{e}}")
+
+# Streamlit 메타데이터 포함 (버전 정보 등)
+try:
+    streamlit_metadata = copy_metadata('streamlit')
+    datas.extend(streamlit_metadata)
+except Exception as e:
+    print(f"Warning: Could not copy Streamlit metadata: {{e}}")
+
+a = Analysis(
+    [r'{wrapper_file_win}'],
+    pathex=[r'{src_dir_win}'],
+    binaries=[],
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[],
+    hooksconfig={{}},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name='GL_Analyzer',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+"""
+    
+    # spec 파일 저장
+    print(f"\nGenerating spec file: {spec_file}")
+    with open(spec_file, 'w', encoding='utf-8') as f:
+        f.write(spec_content)
+    
+    # spec 파일을 사용하여 빌드
     build_cmd = [
         str(python_exe), "-m", "PyInstaller",
-        "--name=GL_Analyzer",
-        "--onefile",
-        "--console",
-        "--hidden-import=streamlit",
-        "--hidden-import=pandas",
-        "--hidden-import=duckdb",
-        "--hidden-import=journal_entry_analyzer",
-        "--hidden-import=db_engine",
-        "--collect-all=streamlit",
-        "--collect-all=altair",
-        "--collect-submodules=streamlit",
-        "--add-data", f"{script_dir / 'src' / 'app.py'};src",  # app.py를 src 폴더로 포함
+        "--clean",
+        str(spec_file)
     ]
-    
-    # data 폴더 추가 (Windows 경로 형식)
-    # PyInstaller는 --add-data로 포함하지만, 실행 시 .exe와 같은 폴더에 있어야 함
-    # 따라서 빌드 후 data 폴더를 dist에 복사해야 함
-    data_dir = script_dir / "data"
-    if data_dir.exists():
-        # WSL에서 Windows로 경로 변환
-        try:
-            import subprocess as sp
-            win_path = sp.check_output(["wslpath", "-w", str(data_dir)], text=True).strip()
-            build_cmd.extend(["--add-data", f"{win_path};data"])
-        except:
-            # wslpath가 없으면 상대 경로 사용
-            build_cmd.extend(["--add-data", "data;data"])
-    
-    build_cmd.append(str(app_file))
     
     print("\nBuilding executable...")
     print("This may take several minutes...")
@@ -196,43 +270,12 @@ def main():
     
     try:
         # Windows Python을 사용하여 빌드
+        # WSL 경로를 Windows 경로로 변환하여 전달
         subprocess.run(build_cmd, check=True, cwd=script_dir)
         
         print("\n" + "=" * 60)
         print("Build completed successfully!")
         print("=" * 60)
-        
-        exe_path = script_dir / "dist" / "GL_Analyzer.exe"
-        if exe_path.exists():
-            print(f"\nExecutable location: {exe_path}")
-            
-            # data 폴더를 dist에 복사 (.exe와 같은 위치에 있어야 함)
-            import shutil
-            dist_data = script_dir / "dist" / "data"
-            if data_dir.exists():
-                if dist_data.exists():
-                    shutil.rmtree(dist_data)
-                shutil.copytree(data_dir, dist_data)
-                print(f"Data folder copied to: {dist_data}")
-            
-            # 루트로도 복사 (선택사항)
-            root_exe = script_dir / "GL_Analyzer.exe"
-            shutil.copy2(exe_path, root_exe)
-            print(f"Also copied to: {root_exe}")
-            
-            print("\n" + "=" * 60)
-            print("✅ 빌드 완료! 배포 준비됨")
-            print("=" * 60)
-            print("\n배포할 파일:")
-            print(f"  📦 {exe_path.name}")
-            print(f"  📁 data/ 폴더 전체")
-            print("\n또는 dist 폴더 전체를 압축하여 배포:")
-            print(f"  📦 dist/ 폴더")
-            print("\n팀원들은 .exe 파일을 더블클릭하면 됩니다!")
-            print("(data 폴더가 .exe와 같은 위치에 있어야 합니다)")
-        else:
-            print("\nWarning: GL_Analyzer.exe not found in dist folder")
-            print("Check build output for errors.")
             
     except subprocess.CalledProcessError as e:
         print(f"\nBuild failed: {e}")

@@ -97,9 +97,38 @@ def main() -> None:
     # 기본 DB 경로는 프로젝트 루트 기준 상대 경로
     # PyInstaller로 빌드된 경우와 일반 실행 모두 지원
     if getattr(sys, 'frozen', False):
-        # PyInstaller로 빌드된 경우: .exe와 같은 폴더에서 data 폴더 찾기
-        exe_dir = Path(sys.executable).parent
-        default_db = exe_dir / DEFAULT_DB_PATH
+        # PyInstaller --onefile 모드: 번들에 포함된 파일은 _MEIPASS에 있음
+        import os
+        if hasattr(sys, '_MEIPASS'):
+            # 번들에 포함된 data 폴더에서 찾기
+            meipass_path = Path(sys._MEIPASS)
+            bundled_db = meipass_path / DEFAULT_DB_PATH
+            if bundled_db.exists():
+                default_db = bundled_db
+            else:
+                # 번들에 없으면 실제 exe 위치에서 찾기 (fallback)
+                exe_dir_str = os.environ.get('EXE_DIR')
+                if exe_dir_str:
+                    exe_dir = Path(exe_dir_str).resolve()
+                else:
+                    cwd = Path(os.getcwd()).resolve()
+                    if cwd.name == 'src':
+                        exe_dir = cwd.parent
+                    else:
+                        exe_dir = cwd
+                default_db = exe_dir / DEFAULT_DB_PATH
+        else:
+            # _MEIPASS가 없으면 실제 exe 위치 기준
+            exe_dir_str = os.environ.get('EXE_DIR')
+            if exe_dir_str:
+                exe_dir = Path(exe_dir_str).resolve()
+            else:
+                cwd = Path(os.getcwd()).resolve()
+                if cwd.name == 'src':
+                    exe_dir = cwd.parent
+                else:
+                    exe_dir = cwd
+            default_db = exe_dir / DEFAULT_DB_PATH
     else:
         # 일반 Python 실행
         default_db = Path(__file__).parent.parent / DEFAULT_DB_PATH
@@ -112,15 +141,58 @@ def main() -> None:
     # 상대 경로인 경우 프로젝트 루트 기준으로 변환
     if not db_path.is_absolute():
         if getattr(sys, 'frozen', False):
-            # PyInstaller로 빌드된 경우: .exe와 같은 폴더 기준
-            exe_dir = Path(sys.executable).parent
-            db_path = exe_dir / db_path
+            # PyInstaller --onefile 모드: 번들에 포함된 파일은 _MEIPASS에 있음
+            import os
+            if hasattr(sys, '_MEIPASS'):
+                meipass_path = Path(sys._MEIPASS)
+                bundled_path = meipass_path / db_path
+                if bundled_path.exists():
+                    db_path = bundled_path
+                else:
+                    # 번들에 없으면 실제 exe 위치에서 찾기
+                    exe_dir_str = os.environ.get('EXE_DIR')
+                    if exe_dir_str:
+                        exe_dir = Path(exe_dir_str).resolve()
+                        db_path = exe_dir / db_path
+                    else:
+                        cwd = Path(os.getcwd()).resolve()
+                        if cwd.name == 'src':
+                            exe_dir = cwd.parent
+                        else:
+                            exe_dir = cwd
+                        db_path = exe_dir / db_path
+            else:
+                # _MEIPASS가 없으면 실제 exe 위치 기준
+                exe_dir_str = os.environ.get('EXE_DIR')
+                if exe_dir_str:
+                    exe_dir = Path(exe_dir_str).resolve()
+                    db_path = exe_dir / db_path
+                else:
+                    cwd = Path(os.getcwd()).resolve()
+                    if cwd.name == 'src':
+                        exe_dir = cwd.parent
+                    else:
+                        exe_dir = cwd
+                    db_path = exe_dir / db_path
         else:
             # 일반 Python 실행
             db_path = Path(__file__).parent.parent / db_path
     
     if not db_path.exists():
+        # 디버깅 정보 표시
+        debug_info = []
+        if getattr(sys, 'frozen', False):
+            if hasattr(sys, '_MEIPASS'):
+                meipass_path = Path(sys._MEIPASS)
+                debug_info.append(f"_MEIPASS: {meipass_path}")
+                debug_info.append(f"_MEIPASS/data/processed/gl_analyzer.duckdb 존재: {(meipass_path / 'data' / 'processed' / 'gl_analyzer.duckdb').exists()}")
+            debug_info.append(f"EXE_DIR: {os.environ.get('EXE_DIR', 'N/A')}")
+            debug_info.append(f"sys.executable: {sys.executable}")
+        
         st.error(f"DB 파일을 찾을 수 없습니다: {db_path}")
+        with st.expander("디버깅 정보", expanded=True):
+            for info in debug_info:
+                st.text(info)
         st.stop()
 
     engine = get_engine(str(db_path))
@@ -239,34 +311,8 @@ def main() -> None:
         st.info("좌측 필터를 설정하고 '쿼리 실행'을 눌러주세요.")
 
 
-if __name__ == "__main__":
-    # PyInstaller로 빌드된 경우 streamlit CLI를 직접 실행
-    if getattr(sys, 'frozen', False):
-        # PyInstaller로 빌드된 경우 streamlit CLI 실행
-        from streamlit.web import cli as stcli
-        import os
-        
-        # 현재 스크립트 경로 찾기
-        if hasattr(sys, '_MEIPASS'):
-            # 임시 폴더에서 실행 중
-            script_path = Path(sys._MEIPASS) / "src" / "app.py"
-            if not script_path.exists():
-                script_path = Path(sys._MEIPASS) / "app.py"
-        else:
-            # 실행 파일과 같은 폴더
-            exe_dir = Path(sys.executable).parent
-            script_path = exe_dir / "src" / "app.py"
-            if not script_path.exists():
-                script_path = exe_dir / "app.py"
-        
-        if script_path.exists():
-            os.chdir(script_path.parent)
-            # streamlit CLI 직접 호출 (브라우저 자동 열림)
-            sys.argv = ["streamlit", "run", str(script_path), "--server.headless", "false"]
-            stcli.main()
-        else:
-            print(f"Error: app.py not found. Searched: {script_path}")
-            input("Press Enter to exit...")
-    else:
-        # 일반 Python 실행 시 (streamlit run app.py로 실행됨)
-        main()
+# Streamlit은 스크립트를 import할 때 top-level 코드를 실행하므로
+# main()을 항상 top-level에서 호출해야 합니다.
+# Streamlit이 app.py를 import할 때 __name__은 "__main__"이 아니라 모듈 이름이지만,
+# Streamlit은 top-level 코드를 실행하므로 main()을 항상 호출합니다.
+main()

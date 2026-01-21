@@ -1,9 +1,48 @@
 from contextlib import contextmanager
 from pathlib import Path
+import sys
+import os
 
 import duckdb
 import pandas as pd
 
+def get_default_db_path() -> Path:
+    """
+    기본 DB 경로를 반환합니다.
+    PyInstaller --onefile 모드에서는 번들에 포함된 파일이 _MEIPASS에 압축 해제되므로
+    _MEIPASS에서 찾아야 합니다.
+    """
+    if getattr(sys, 'frozen', False):
+        # PyInstaller --onefile 모드: 번들에 포함된 파일은 _MEIPASS에 있음
+        if hasattr(sys, '_MEIPASS'):
+            # 번들에 포함된 data 폴더에서 찾기
+            meipass_path = Path(sys._MEIPASS)
+            db_path = meipass_path / "data" / "processed" / "gl_analyzer.duckdb"
+            if db_path.exists():
+                return db_path
+        
+        # _MEIPASS에 없으면 실제 exe 위치에서 찾기 (fallback)
+        # (사용자가 수동으로 data 폴더를 복사한 경우)
+        exe_dir_str = os.environ.get('EXE_DIR')
+        if exe_dir_str:
+            exe_dir = Path(exe_dir_str).resolve()
+            db_path = exe_dir / "data" / "processed" / "gl_analyzer.duckdb"
+            if db_path.exists():
+                return db_path
+            return db_path
+        else:
+            # 환경변수가 없으면 현재 작업 디렉토리 사용 (fallback)
+            cwd = Path(os.getcwd()).resolve()
+            if cwd.name == 'src':
+                exe_dir = cwd.parent
+            else:
+                exe_dir = cwd
+            return exe_dir / "data" / "processed" / "gl_analyzer.duckdb"
+    else:
+        # 일반 실행: 프로젝트 루트 기준
+        return Path(__file__).parent.parent / "data" / "processed" / "gl_analyzer.duckdb"
+
+# 하위 호환성을 위해 상수로도 제공
 DEFAULT_DB_PATH = Path("data/processed/gl_analyzer.duckdb")
 GL_FOLDER_PATH = Path("data/working/after_processing")  # 전처리된 CSV 파일 위치
 
@@ -22,8 +61,60 @@ KNOWN_TYPES = {
 }
 
 class GLEngine:
-    def __init__(self, db_path: Path | str = DEFAULT_DB_PATH):
+    def __init__(self, db_path: Path | str | None = None):
+        """
+        Args:
+            db_path: DB 파일 경로. None이면 기본 경로 사용 (PyInstaller 빌드 환경 고려)
+        """
+        if db_path is None:
+            db_path = get_default_db_path()
         self.db_path = Path(db_path)
+        
+        # 디버깅: 경로 확인
+        if getattr(sys, 'frozen', False) and not self.db_path.exists():
+            if hasattr(sys, '_MEIPASS'):
+                meipass_path = Path(sys._MEIPASS)
+                print(f"DEBUG: _MEIPASS = {meipass_path}")
+                print(f"DEBUG: Looking for DB at: {self.db_path}")
+                print(f"DEBUG: _MEIPASS/data/processed/gl_analyzer.duckdb exists: {(meipass_path / 'data' / 'processed' / 'gl_analyzer.duckdb').exists()}")
+        # 상대 경로인 경우 처리
+        if not self.db_path.is_absolute():
+            if getattr(sys, 'frozen', False):
+                # PyInstaller --onefile 모드: 번들에 포함된 파일은 _MEIPASS에 있음
+                if hasattr(sys, '_MEIPASS'):
+                    meipass_path = Path(sys._MEIPASS)
+                    bundled_path = meipass_path / self.db_path
+                    if bundled_path.exists():
+                        self.db_path = bundled_path
+                    else:
+                        # 번들에 없으면 실제 exe 위치에서 찾기
+                        exe_dir_str = os.environ.get('EXE_DIR')
+                        if exe_dir_str:
+                            exe_dir = Path(exe_dir_str).resolve()
+                            self.db_path = exe_dir / self.db_path
+                        else:
+                            cwd = Path(os.getcwd()).resolve()
+                            if cwd.name == 'src':
+                                exe_dir = cwd.parent
+                            else:
+                                exe_dir = cwd
+                            self.db_path = exe_dir / self.db_path
+                else:
+                    # _MEIPASS가 없으면 실제 exe 위치 기준
+                    exe_dir_str = os.environ.get('EXE_DIR')
+                    if exe_dir_str:
+                        exe_dir = Path(exe_dir_str).resolve()
+                        self.db_path = exe_dir / self.db_path
+                    else:
+                        cwd = Path(os.getcwd()).resolve()
+                        if cwd.name == 'src':
+                            exe_dir = cwd.parent
+                        else:
+                            exe_dir = cwd
+                        self.db_path = exe_dir / self.db_path
+            else:
+                # 일반 실행: 프로젝트 루트 기준
+                self.db_path = Path(__file__).parent.parent / self.db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     @contextmanager
@@ -155,7 +246,7 @@ class GLEngine:
 
 # --- 확인용 코드 ---
 if __name__ == "__main__":    
-    engine = GLEngine()
+    engine = GLEngine()  # 기본 경로 사용
     print(f"🚀 분석 엔진 가동 (DB: {engine.db_path})")
 
     try:

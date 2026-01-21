@@ -1,6 +1,0 @@
-#!/bin/bash
-# WSL에서 Windows용 .exe 빌드 - 더블클릭으로 실행 가능
-# 이 파일을 더블클릭하면 Windows용 .exe 파일이 빌드됩니다.
-
-cd "$(dirname "$0")"
-exec python3 build_exe_windows.py
