@@ -208,3 +208,4 @@ __marimo__/
 
 # csv파일과 db데이터 무시
 data/
+gl_analyzer.duckdb
